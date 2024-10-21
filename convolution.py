@@ -32,7 +32,7 @@ def convolution(image, kernel):
     return output
 
 if __name__ == "__main__":
-    image_path = "C:/Users/PC/Desktop/Placa.jpg"
+    image_path = "Placa.jpg"
 
     kernel = np.array([[1, 0, -1],
                        [2,0, -2],

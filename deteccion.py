@@ -1,56 +1,59 @@
 import cv2
+import imutils
 import pytesseract
+import numpy as np
+
 pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'
-placa = []
 
-image = cv2.imread('cars/car_image1.jpg')
-cv2.imshow('Image',image)
-cv2.moveWindow('Image',45,10)
-cv2.waitKey(0)
+image = cv2.imread('cars/car_image2.jpg')
+image = imutils.resize(image, width=800)
+
+def adjust_gamma(image, gamma):
+  invGamma = 1.0 / gamma
+  table = [((i / 255.0) ** invGamma) * 255 for i in range(256)]
+  table = np.array(table).astype("uint8")
+  return cv2.LUT(image, table)
+
+image = adjust_gamma(image, gamma=2.4)
 gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-cv2.imshow('Image',gray)
-cv2.moveWindow('Image',45,10)
-cv2.waitKey(0)
-gray = cv2.blur(gray,(3,3))
-cv2.imshow('Image',gray)
-cv2.moveWindow('Image',45,10)
-cv2.waitKey(0)
-canny = cv2.Canny(gray,150,200)
-cv2.imshow('Image',canny)
-cv2.moveWindow('Image',45,10)
-cv2.waitKey(0)
-canny = cv2.dilate(canny,None,iterations=1)
-cv2.imshow('Image',canny)
-cv2.moveWindow('Image',45,10)
-cv2.waitKey(0)
+gray = cv2.bilateralFilter(gray, 11, 20, 20)
+edged = cv2.Canny(gray, 100, 200)
+#cv2.imshow('Canny', edged)
+#cv2.moveWindow('Image', 45, 300)
+#cv2.waitKey(0)
 
-#_,cnts,_ = cv2.findContours(canny,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-cnts,_ = cv2.findContours(canny,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-print(cnts)
-#cv2.drawContours(image,cnts,-1,(0,255,0),2)
+cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:30]
+lic_num = None
 
 for c in cnts:
-  area = cv2.contourArea(c)
+  peri = cv2.arcLength(c, True)
+  approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+  if len(approx) == 4:
+    lic_num = approx
+    break
 
-  x,y,w,h = cv2.boundingRect(c)
-  epsilon = 0.09*cv2.arcLength(c,True)
-  approx = cv2.approxPolyDP(c,epsilon,True)
-  
-  if len(approx)==4 and area>9000:
-    print('area=',area)
-    #cv2.drawContours(image,[approx],0,(0,255,0),3)
+if lic_num is not None:
+  cv2.drawContours(image, [lic_num], -1, (0, 255, 0), 3)
+  cv2.imshow('contornos',image)
+  cv2.moveWindow('Image',45,10)
+  cv2.waitKey(0)  
 
-    aspect_ratio = float(w)/h
-    if aspect_ratio>2.4:
-      placa = gray[y:y+h,x:x+w]
-      text = pytesseract.image_to_string(placa,config='--psm 11')
-      print('PLACA: ',text)
+  x, y, w, h = cv2.boundingRect(lic_num)
+  nplate = gray[y:y + h, x:x + w]
 
-      cv2.imshow('PLACA',placa)
-      cv2.moveWindow('PLACA',780,10)
-      cv2.rectangle(image,(x,y),(x+w,y+h),(0,255,0),3)
-      cv2.putText(image,text,(x-20,y-10),1,2.2,(0,255,0),3)
-      
-cv2.imshow('Image',image)
-cv2.moveWindow('Image',45,10)
-cv2.waitKey(0)
+  if nplate.size > 0:
+    cv2.imwrite('Cropped Image.png', nplate)
+    nplate = imutils.resize(nplate, width=300)
+
+    print(pytesseract.image_to_string(nplate, config = f'--psm 8 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'))
+    cv2.imshow('Region de Interes', nplate)
+    cv2.waitKey(0)
+  else:
+    print("No se pudo recortar la imagen de la placa.")
+else:
+    print("No se detectó ningún contorno de placa.")
+
+
+#cv2.imshow("Final Image With Number Plate Detected", image)
+#cv2.waitKey(0)

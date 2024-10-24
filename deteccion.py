@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'
 
-image = cv2.imread('cars/Placa.jpg')
+image = cv2.imread('cars/placa5.jpg')
 image = imutils.resize(image, width=1000)
 
 def convolution(image, kernel):
@@ -24,17 +24,28 @@ def convolution(image, kernel):
 
     return output
 
+# Convierte la imagen a escala de grises
 gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-# Usa la convolución con un kernel de Sobel en lugar de Canny
-sobel_kernel = np.array([[1, 0, -1],
-                         [2, 0, -2],
-                         [1, 0, -1]])
+# Aplica la convolución con el kernel Sobel en X y Y
+sobel_x_kernel = np.array([[-1, 0, 1],
+                           [-2, 0, 2],
+                           [-1, 0, 1]])
 
-edged = convolution(gray, sobel_kernel)
+sobel_y_kernel = np.array([[-1, -2, -1],
+                           [0, 0, 0],
+                           [1, 2, 1]])
 
-# Continua con la detección de contornos como lo tienes
-cnts, _ = cv2.findContours(edged.astype("uint8").copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+# Aplica convolución en X y en Y
+edged_x = convolution(gray, sobel_x_kernel)
+edged_y = convolution(gray, sobel_y_kernel)
+
+# Combina los bordes detectados en X y Y
+edged_combined = np.sqrt(edged_x**2 + edged_y**2)
+edged_combined = np.uint8(edged_combined)
+
+# Detección de contornos
+cnts, _ = cv2.findContours(edged_combined, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:30]
 lic_num = None
 
@@ -47,8 +58,6 @@ for c in cnts:
 
 if lic_num is not None:
     cv2.drawContours(image, [lic_num], -1, (0, 255, 0), 3)
-    cv2.imshow('contornos', image)
-    cv2.waitKey(0)
 
     x, y, w, h = cv2.boundingRect(lic_num)
     nplate = gray[y:y + h, x:x + w]
